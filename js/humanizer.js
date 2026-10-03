@@ -14,9 +14,9 @@
   }
 
   const STRENGTH = {
-    light: { rep: 0.6, trans: 0.45, split: 0.3, merge: 0.2 },
-    medium: { rep: 0.9, trans: 0.8, split: 0.65, merge: 0.4 },
-    strong: { rep: 1, trans: 0.9, split: 0.85, merge: 0.55 }
+    light: { rep: 0.6, trans: 0.45, split: 0.3, merge: 0.2, mergeMax: 9, trip: 0.3, voice: 0, rhythm: 0 },
+    medium: { rep: 0.9, trans: 0.8, split: 0.7, merge: 0.5, mergeMax: 12, trip: 0.7, voice: 1, rhythm: 0.2 },
+    strong: { rep: 1, trans: 0.95, split: 0.9, merge: 0.7, mergeMax: 15, trip: 1, voice: 2, rhythm: 0.35 }
   };
 
   const repCache = {};
@@ -33,11 +33,15 @@
     return s.slice(0, i) + s[i].toUpperCase() + s.slice(i + 1);
   }
 
-  function lowerFirstWord(s, mergeable) {
+  const NO_VOICE = new Set(['mais', 'et', 'donc', 'pourtant', 'notons', 'puis', 'sans', 'ainsi', 'bref', 'perso',
+    'franchement', 'honnêtement', 'but', 'and', 'so', 'still', 'yet', 'plus', 'also', 'note', 'all', 'honestly']);
+  const lowerSets = {};
+  function lowerFirstWord(s, lex) {
     const m = s.match(/^([\p{L}'’]+)/u);
     if (!m) return null;
+    const set = (lowerSets[lex.name] ||= new Set([...lex.mergeable, ...lex.stopwords, ...lex.starters]));
     const w = D.normKey(m[1]);
-    if (!mergeable.includes(w)) return null;
+    if (/^[\p{L}'’]+,/u.test(s) || /^\p{Lu}{2,}/u.test(m[1]) || (!set.has(w) && !/^(?:l|d|qu|c|s|n)'/.test(w))) return null;
     return s[0].toLowerCase() + s.slice(1);
   }
 
@@ -122,6 +126,17 @@
         });
       }
 
+      // 2b. Casser les énumérations en trois éléments
+      if (lex && rand() < P.trip) {
+        const re = new RegExp('^(.+?), ([^,;:!?]{1,40}?),? ' + lex.and + ' ([^,;:!?]+)$', 'u');
+        const m = s.match(re);
+        const wc = (x) => D.words(x).length;
+        if (m && wc(m[1]) >= 3 && wc(m[2]) <= 5 && wc(m[3]) <= 8) {
+          s = `${m[1]} ${lex.and} ${m[2]}${lex.tripletTail[tone]}${m[3]}`;
+          changed = true;
+        }
+      }
+
       // 3. Tirets longs → virgules
       s = s.replace(/\s*—\s*(?=\S)/g, (m, off) => (off === 0 ? m : ', ')).replace(/(?<=\S) – (?=\S)/g, ', ');
 
@@ -181,10 +196,11 @@
       const out = [];
       for (let i = 0; i < sents.length; i++) {
         const a = sents[i], b = sents[i + 1];
-        if (b && /[^.]\.$/.test(a) && D.words(a).length <= 9 && D.words(b).length <= 9 && rand() < P.merge) {
-          const lb = lowerFirstWord(b, lex.mergeable);
+        if (b && /[^.]\.$/.test(a) && D.words(a).length <= P.mergeMax && D.words(b).length <= P.mergeMax && rand() < P.merge) {
+          const lb = lowerFirstWord(b, lex);
           if (lb) {
-            out.push(a.slice(0, -1) + lex.mergeJoin[tone] + lb);
+            const join = /^(?:mais|et|donc|pourtant|but|and|so|yet|still|plus|also)(?![\p{L}])/u.test(lb) ? ', ' : lex.mergeJoin[tone];
+            out.push(a.slice(0, -1) + join + lb);
             i++;
             continue;
           }
@@ -194,23 +210,77 @@
       return out;
     }
 
+    // Ajoute une touche de voix personnelle (« Je pense que… ») à une phrase
+    let voiceLeft = P.voice;
+    function addVoice(sents) {
+      const opts = lex && lex.opinions[tone];
+      if (!opts || !opts.length || voiceLeft <= 0 || rand() < 0.35) return sents;
+      const idx = sents.map((s, i) => i).filter((i) => D.words(sents[i]).length >= 6 && !/[?!]$/.test(sents[i]));
+      if (!idx.length) return sents;
+      const i = idx[Math.floor(rand() * idx.length)];
+      // Pas de connecteur ni de formule d'ouverture avant l'opinion ajoutée
+      const first = D.normKey((sents[i].match(/^[\p{L}'’]+/u) || [''])[0]);
+      if (!/^[^,;:]{25,}/u.test(sents[i]) || NO_VOICE.has(first)) return sents;
+      const lowered = lowerFirstWord(sents[i], lex);
+      if (!lowered) return sents;
+      let out = pick(opts) + lowered;
+      out = lang === 'fr' ? fixElisionFR(out) : out;
+      voiceLeft--;
+      return sents.map((s, k) => (k === i ? out : s));
+    }
+
     function processParagraph(p) {
       const lead = p.match(/^\s*(?:[-*•]\s+|\d+[.)]\s+)?/)[0];
       const body = p.slice(lead.length);
       const trail = body.match(/\s*$/)[0];
-      let sents = D.splitSentences(body).map((s) => processSentence(s.text)).filter(Boolean);
-      sents = mergeShort(splitLong(sents));
-      return lead + sents.join(' ') + trail;
+      const sents = D.splitSentences(body).map((s) => processSentence(s.text)).filter(Boolean);
+      return { lead, trail, sents: mergeShort(splitLong(sents)) };
     }
 
-    return stripMarkdown(text)
+    // Rythme : fusionne les phrases voisines qui augmentent le plus le contraste court / long
+    function rhythm(paras) {
+      if (!lex || !P.rhythm) return;
+      const cv = () => {
+        const l = paras.flatMap((p) => (p.sents || []).map((s) => D.words(s).length));
+        const m = l.reduce((a, b) => a + b, 0) / l.length;
+        return Math.sqrt(l.reduce((a, b) => a + (b - m) ** 2, 0) / l.length) / m;
+      };
+      const total = paras.reduce((n, p) => n + (p.sents ? p.sents.length : 0), 0);
+      for (let left = Math.floor(total * P.rhythm); left > 0; left--) {
+        const base = cv();
+        let best = null;
+        for (const p of paras) {
+          if (!p.sents) continue;
+          for (let i = 0; i + 1 < p.sents.length; i++) {
+            const a = p.sents[i];
+            if (!/[^.]\.$/.test(a) || D.words(a).length + D.words(p.sents[i + 1]).length > 40) continue;
+            const lb = lowerFirstWord(p.sents[i + 1], lex);
+            if (!lb) continue;
+            const join = /^(?:mais|et|donc|pourtant|but|and|so|yet|still|plus|also)(?![\p{L}])/u.test(lb) ? ', ' : lex.mergeJoin[tone];
+            const merged = a.slice(0, -1) + join + lb;
+            const saved = p.sents;
+            p.sents = [...saved.slice(0, i), merged, ...saved.slice(i + 2)];
+            const gain = cv() - base + rand() * 0.02;
+            p.sents = saved;
+            if (gain > 0 && (!best || gain > best.gain)) best = { p, i, merged, gain };
+          }
+        }
+        if (!best) break;
+        best.p.sents.splice(best.i, 2, best.merged);
+      }
+    }
+
+    const paras = stripMarkdown(text)
       .split(/(\n+)/)
-      .map((p) => (/^\n*$/.test(p) || !p.trim() ? p : processParagraph(p)))
+      .map((p) => (/^\n*$/.test(p) || !p.trim() ? { raw: p } : processParagraph(p)));
+    rhythm(paras);
+    return paras
+      .map((p) => (p.raw !== undefined ? p.raw : p.lead + addVoice(p.sents).join(' ') + p.trail))
       .join('');
   };
 
   /* Génère plusieurs variantes et garde celle qui paraît la plus humaine. */
-  D.humanizeBest = function (text, opts = {}, tries = 8) {
+  D.humanizeBest = function (text, opts = {}, tries = 24) {
     let best = null;
     for (let k = 0; k < tries; k++) {
       const out = D.humanize(text, { ...opts, seed: (opts.seed || 1) + k * 104729 });

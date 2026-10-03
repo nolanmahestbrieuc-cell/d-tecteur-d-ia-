@@ -36,7 +36,8 @@
       transitions: {
         add: ['de plus', 'en outre', 'par ailleurs', 'de surcroît', 'également', 'qui plus est'],
         contrast: ['cependant', 'néanmoins', 'toutefois', 'en revanche'],
-        cause: ['ainsi', 'par conséquent', 'en effet', 'effectivement', 'dès lors', 'de ce fait'],
+        cause: ['ainsi', 'par conséquent', 'dès lors', 'de ce fait'],
+        indeed: ['en effet', 'effectivement'],
         conclude: ['en conclusion', 'en résumé', 'pour conclure', 'en somme', "dans l'ensemble", 'en définitive',
           'finalement', 'en fin de compte', 'pour résumer'],
         sequence: ["tout d'abord", 'premièrement', 'deuxièmement', 'troisièmement', 'enfin', "d'une part", "d'autre part"]
@@ -46,11 +47,12 @@
         contrast: { casual: ['Mais ', 'Par contre, '], neutral: ['Mais ', 'Pourtant, '], pro: ['Pourtant, ', 'Mais '], academic: ['Pourtant, ', 'Toutefois, '] },
         cause: { casual: ['Du coup, ', 'Donc ', ''], neutral: ['Donc ', ''], pro: ['Donc ', ''], academic: ['Dès lors, ', ''] },
         conclude: { casual: ['Bref, ', 'Au final, ', 'En gros, '], neutral: ['Bref, ', 'Au final, '], pro: ['Au final, ', 'Pour résumer, '], academic: ['Pour finir, ', 'En définitive, '] },
+        indeed: { casual: [''], neutral: [''], pro: [''], academic: [''] },
         sequence: { casual: [''], neutral: [''], pro: [''], academic: [''] }
       },
 
-      personal: /(?<![\p{L}])(?:j['’]|m['’](?=\p{L})|(?:je|moi|mon|ma|mes|perso|franchement|bref|genre|truc|ouais|bah|hein|du coup|bon)(?![\p{L}]))/giu,
-      triplet: /,\s[^,.;:!?\n]{1,40},?\s(?:et|ou)\s/iu,
+      personal: /(?<![\p{L}])(?:j['’]|m['’](?=\p{L})|(?:je|moi|mon|ma|mes|perso|franchement|honnêtement|bref|genre|truc|ouais|bah|hein|du coup|bon)(?![\p{L}]))/giu,
+      triplet: /,\s(?!(?:et|mais|sans|ainsi|tant)\s)[^,.;:!?\n]{1,40},?\s(?:et|ou)\s(?!(?:il|elle|ils|elles|on|je|nous|vous|la|le|les|même|aussi|puis)\s)/iu,
 
       // Réécritures : clé = expression (minuscules), d = alternatives par défaut, c = ton décontracté
       replacements: {
@@ -91,7 +93,7 @@
         'favorisent': { d: ['encouragent', 'stimulent'] },
         'optimiser': { d: ['améliorer'] },
         'un large éventail de': { d: ['beaucoup de', 'toute une série de'], c: ['plein de'] },
-        'une multitude de': { d: ['beaucoup de', 'de nombreuses'], c: ['plein de', 'tout un tas de'] },
+        'une multitude de': { d: ['beaucoup de', 'une foule de'], c: ['plein de', 'tout un tas de'] },
         'une myriade de': { d: ['beaucoup de', 'énormément de'] },
         'une pléthore de': { d: ['beaucoup de', 'énormément de'] },
         'en fin de compte': { d: ['au final', 'finalement'] },
@@ -154,7 +156,19 @@
       ],
       mergeable: ['il', 'elle', 'ils', 'elles', 'on', 'le', 'la', 'les', 'ce', 'cette', 'ces', "c'est", 'cela', 'ça',
         'un', 'une', 'des', 'son', 'sa', 'ses', 'leur', 'leurs', 'nous', 'vous', 'je'],
-      mergeJoin: { casual: ', et ', neutral: ', et ', pro: ' ; ', academic: ' ; ' }
+      mergeJoin: { casual: ', et ', neutral: ', et ', pro: ' ; ', academic: ' ; ' },
+      // Casser les énumérations « A, B et C » → « A et B, sans oublier C »
+      tripletTail: { casual: ', et même ', neutral: ', sans oublier ', pro: ', ainsi que ', academic: ', ainsi que ' },
+      and: 'et',
+      starters: ['mais', 'et', 'donc', 'pourtant', 'perso', 'franchement', 'honnêtement', 'bref', 'chaque', 'pour',
+        'notons', "aujourd'hui", 'au', 'en', 'tout', 'certains', 'beaucoup', 'ainsi', 'puis', 'sans'],
+      // Touches de voix personnelle ajoutées en début de phrase
+      opinions: {
+        casual: ['Franchement, ', 'Honnêtement, ', 'Je trouve que ', 'Perso, je pense que '],
+        neutral: ['À mon avis, ', 'Je pense que ', 'Pour moi, '],
+        pro: ['Selon moi, ', 'De mon point de vue, ', "D'après mon expérience, "],
+        academic: []
+      }
     },
 
     en: {
@@ -187,7 +201,8 @@
       transitions: {
         add: ['furthermore', 'moreover', 'additionally', 'in addition', 'also', 'besides'],
         contrast: ['however', 'nevertheless', 'nonetheless', 'conversely', 'on the other hand'],
-        cause: ['therefore', 'thus', 'consequently', 'hence', 'as a result', 'indeed', 'in fact'],
+        cause: ['therefore', 'thus', 'consequently', 'hence', 'as a result'],
+        indeed: ['indeed', 'in fact'],
         conclude: ['in conclusion', 'in summary', 'to summarize', 'overall', 'ultimately', 'all in all', 'in essence', 'to sum up'],
         sequence: ['firstly', 'first and foremost', 'secondly', 'thirdly', 'lastly', 'finally', 'notably', 'importantly', 'interestingly']
       },
@@ -196,11 +211,12 @@
         contrast: { casual: ['But ', 'Still, '], neutral: ['But ', 'Still, '], pro: ['Still, ', 'But '], academic: ['Still, ', 'Yet '] },
         cause: { casual: ['So ', ''], neutral: ['So ', ''], pro: ['So ', ''], academic: ['As a result, ', ''] },
         conclude: { casual: ['So, ', 'Anyway, ', 'In short, '], neutral: ['In short, ', 'All in all, '], pro: ['In short, ', 'All told, '], academic: ['In short, ', 'To conclude, '] },
+        indeed: { casual: [''], neutral: [''], pro: [''], academic: [''] },
         sequence: { casual: [''], neutral: [''], pro: [''], academic: [''] }
       },
 
       personal: /(?<![\p{L}])(?:i|me|my|mine|myself|i['’]m|i['’]ve|i['’]d|i['’]ll|honestly|kinda|gonna|wanna|yeah|stuff|lol|pretty much)(?![\p{L}])|\p{L}(?:n['’]t|['’]re|['’]ve|['’]ll|['’]m)(?![\p{L}])/giu,
-      triplet: /,\s[^,.;:!?\n]{1,40},?\s(?:and|or)\s/iu,
+      triplet: /,\s(?!(?:and|but|as well|plus)\s)[^,.;:!?\n]{1,40},?\s(?:and|or)\s(?!(?:it|they|we|you|i|he|she|this|that|the|also|so)\s)/iu,
 
       replacements: {
         'it is important to note that': { d: ['', 'note that'], c: ['', 'keep in mind that'] },
@@ -308,7 +324,17 @@
       ],
       mergeable: ['it', 'this', 'that', 'these', 'those', 'they', 'he', 'she', 'we', 'you', 'the', 'a', 'an', 'its',
         'their', 'his', 'her', 'there'],
-      mergeJoin: { casual: ', and ', neutral: ', and ', pro: '; ', academic: '; ' }
+      mergeJoin: { casual: ', and ', neutral: ', and ', pro: '; ', academic: '; ' },
+      tripletTail: { casual: ', plus ', neutral: ', and also ', pro: ', as well as ', academic: ', as well as ' },
+      and: 'and',
+      starters: ['but', 'and', 'so', 'still', 'honestly', 'plus', 'also', 'each', 'every', 'today', 'many', 'some',
+        'most', 'in', 'for', 'to', 'yet', 'note', 'all'],
+      opinions: {
+        casual: ['Honestly, ', 'I think ', 'If you ask me, '],
+        neutral: ['I think ', 'In my view, ', 'To me, '],
+        pro: ['In my view, ', 'In my experience, ', 'From what I have seen, '],
+        academic: []
+      }
     }
   };
 })();

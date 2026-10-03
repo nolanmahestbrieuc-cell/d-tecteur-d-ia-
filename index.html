@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Détecteur IA</title>
+  <meta name="description" content="Détectez les textes générés par IA et humanisez-les, directement dans votre navigateur.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%2311a683'/%3E%3Cpath d='M10 16.5l4 4 8-9' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="15"/><path d="M10 16.5l4 4 8-9"/></svg>
+      </span>
+      <span class="brand-name">Détecteur<b>IA</b></span>
+    </div>
+    <div class="top-actions">
+      <label class="select">
+        <span class="sr-only">Charger un exemple</span>
+        <select id="samples">
+          <option value="">Exemples…</option>
+          <option value="frAi">Texte IA (français)</option>
+          <option value="frHuman">Texte humain (français)</option>
+          <option value="enAi">Texte IA (anglais)</option>
+        </select>
+      </label>
+      <button class="btn ghost" id="btn-clear" type="button">Effacer</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="doc" aria-label="Éditeur">
+      <div class="doc-head">
+        <input class="doc-title" id="doc-title" value="Document sans titre" aria-label="Titre du document">
+        <span class="lang-badge" id="lang-badge" hidden></span>
+      </div>
+      <div class="editor-wrap" id="editor-wrap">
+        <div class="backdrop" id="backdrop" aria-hidden="true"></div>
+        <textarea id="editor" spellcheck="true" placeholder="Collez ou tapez votre texte ici. L'analyse démarre automatiquement…"></textarea>
+      </div>
+      <footer class="doc-foot">
+        <span id="stats">0 mot</span>
+        <span class="legend">
+          <span class="dot high"></span>Très probablement IA
+          <span class="dot mid"></span>Suspect
+        </span>
+      </footer>
+    </section>
+
+    <aside class="panel" aria-label="Résultats">
+      <div class="card score-card">
+        <div class="gauge">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="track" cx="60" cy="60" r="52"/>
+            <circle class="bar" id="gauge-bar" cx="60" cy="60" r="52"/>
+          </svg>
+          <div class="gauge-label"><span id="score">–</span><small>% IA</small></div>
+        </div>
+        <div class="verdict">
+          <h2 id="verdict">En attente de texte</h2>
+          <p id="confidence">Collez un texte d'au moins quelques phrases pour lancer l'analyse.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Signaux détectés</h3>
+        <ul class="signals" id="signals"><li class="empty">Aucun signal pour l'instant.</li></ul>
+      </div>
+
+      <div class="card">
+        <h3>Phrases à revoir <span class="count" id="flag-count"></span></h3>
+        <ul class="flags" id="flags"><li class="empty">Les phrases suspectes apparaîtront ici.</li></ul>
+      </div>
+
+      <div class="card humanize-card">
+        <h3>Humaniser le texte</h3>
+        <p class="hint">Choisissez un ton puis lancez la réécriture.</p>
+        <div class="field-label" id="tone-label">Ton</div>
+        <div class="chips" role="radiogroup" aria-labelledby="tone-label" id="tone">
+          <button type="button" role="radio" data-v="casual">😎 Décontracté</button>
+          <button type="button" role="radio" data-v="neutral" aria-checked="true">🙂 Neutre</button>
+          <button type="button" role="radio" data-v="pro">💼 Professionnel</button>
+          <button type="button" role="radio" data-v="academic">🎓 Académique</button>
+        </div>
+        <div class="field-label" id="strength-label">Intensité</div>
+        <div class="segmented" role="radiogroup" aria-labelledby="strength-label" id="strength">
+          <button type="button" role="radio" data-v="light">Légère</button>
+          <button type="button" role="radio" data-v="medium" aria-checked="true">Moyenne</button>
+          <button type="button" role="radio" data-v="strong">Forte</button>
+        </div>
+        <button class="btn primary block" id="btn-humanize" type="button" disabled>✨ Humaniser</button>
+      </div>
+
+      <p class="disclaimer">Analyse 100 % locale : votre texte ne quitte jamais votre navigateur. Les résultats sont des estimations heuristiques, pas une preuve.</p>
+    </aside>
+  </main>
+
+  <div class="modal" id="modal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <header class="modal-head">
+        <div>
+          <h2 id="modal-title">Avant / Après</h2>
+          <p class="score-shift"><span class="pill" id="before-score"></span> → <span class="pill" id="after-score"></span></p>
+        </div>
+        <button class="icon-btn" id="btn-close" type="button" aria-label="Fermer">✕</button>
+      </header>
+      <div class="compare">
+        <div class="col">
+          <div class="col-head">Original</div>
+          <div class="col-body" id="before"></div>
+        </div>
+        <div class="col">
+          <div class="col-head">Humanisé <small>(modifiable)</small></div>
+          <div class="col-body" id="after" contenteditable="plaintext-only" spellcheck="true"></div>
+        </div>
+      </div>
+      <footer class="modal-foot">
+        <button class="btn ghost" id="btn-regen" type="button">↻ Autre version</button>
+        <span class="spacer"></span>
+        <button class="btn ghost" id="btn-copy" type="button">Copier</button>
+        <button class="btn primary" id="btn-apply" type="button">Remplacer dans l'éditeur</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tip" role="tooltip" hidden></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/lexicon.js"></script>
+  <script src="js/detector.js"></script>
+  <script src="js/humanizer.js"></script>
+  <script src="js/diff.js"></script>
+  <script src="js/samples.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
